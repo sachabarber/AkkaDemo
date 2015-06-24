@@ -1,20 +1,57 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
+using System.Threading;
 using Akka.Actor;
+using Akka.Event;
 
-namespace AkkaWorkFlow
+
+namespace AkkWorkflow
 {
     public class DirectoryScannerActor : ReceiveActor
     {
-        public DirectoryScannerActor(DirectoryIO io, IActorRef receiver)
+
+        private FileObserver fileObserver = null;
+        private readonly ILoggingAdapter log = Context.GetLogger();
+
+        public DirectoryScannerActor(DirectoryIO io, IActorRef fileReceiverActor)
         {
             foreach( var m in io.GetExistingFiles().Select(x => new ProcessFile(x)))
-                receiver.Tell(m);
+                fileReceiverActor.Tell(m);
+
+
+            fileObserver = new FileObserver(Self,fileReceiverActor);
+
+            //throw new Exception("dfasbasdbjkdasj");
+
+
+            Receive<Exception>(x => throwUp(x));
+
+
+            
+
         }
 
-        public static Props Create(DirectoryIO io, IActorRef receiver)
+
+        private void throwUp(Exception e)
+        {
+            Console.WriteLine("throwUp");
+            throw e;
+        }
+
+
+        public static Props Create(DirectoryIO io, IActorRef fileReceiverActor)
         {
 
-            return Props.Create(() => new DirectoryScannerActor(io, receiver));
+            return Props.Create(() => new DirectoryScannerActor(io, fileReceiverActor));
+        }
+
+        protected override void PreRestart(Exception reason, object message)
+        {
+            base.PreRestart(reason, message);
+            if (fileObserver != null)
+            {
+                fileObserver.Dispose();
+            }
         }
     }
 }
